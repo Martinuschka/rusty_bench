@@ -1,0 +1,8 @@
+# cargo
+/target
+
+# IDE
+.idea/
+
+# cursor
+.cursor/
