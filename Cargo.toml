@@ -1,6 +1,9 @@
 [package]
-name = "rusty_bench"
+name = "pi_benchmark"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+indicatif = "0.16.2"
+crossbeam = "0.8"
+signal-hook = "0.4.4"
