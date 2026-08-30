@@ -38,6 +38,7 @@ fn matched_digits(estimate: f64, reference: f64, max_check: usize) -> usize {
     matched
 }
 
+/// Prompt for a usize value, reading input until a valid number is entered.
 fn prompt_usize(prompt: &str) -> usize {
     loop {
         print!("{}", prompt);
@@ -51,6 +52,29 @@ fn prompt_usize(prompt: &str) -> usize {
             Ok(n) => return n,
             Err(_) => {
                 println!("Please enter a non-negative integer.");
+            }
+        }
+    }
+}
+
+/// Prompt for the target digits or allow quitting by entering 'q' or 'Q'.
+fn prompt_digits_or_quit(prompt: &str) -> Option<usize> {
+    loop {
+        print!("{}", prompt);
+        io::stdout().flush().ok();
+        let mut input = String::new();
+        if io::stdin().read_line(&mut input).is_err() {
+            println!("Failed to read input. Try again.");
+            continue;
+        }
+        let s = input.trim();
+        if s.eq_ignore_ascii_case("q") {
+            return None;
+        }
+        match s.parse::<usize>() {
+            Ok(n) => return Some(n),
+            Err(_) => {
+                println!("Please enter a non-negative integer or 'q' to quit.");
             }
         }
     }
@@ -89,7 +113,15 @@ fn main() {
         // reset stop
         stop_flag.store(false, Ordering::SeqCst);
 
-        let target_digits = prompt_usize("How many correct digits of Pi should the benchmark run for? (0 = run until cancelled): ");
+        // allow quitting by entering 'q' at the digits prompt
+        let target_digits = match prompt_digits_or_quit("How many correct digits of Pi should the benchmark run for? (0 = run until cancelled, 'q' to exit): ") {
+            None => {
+                println!("Exiting rusty_bench. Goodbye.");
+                return;
+            }
+            Some(n) => n,
+        };
+
         let num_threads = prompt_usize("How many threads should be used? (1.. = number of worker threads): ");
         if num_threads == 0 {
             println!("Number of threads must be >= 1.");
