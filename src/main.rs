@@ -172,7 +172,7 @@ fn main() {
 
         // Monitoring loop: update ASCII progress
         let mut last_total = 0u64;
-        let mut spinner = vec!["|", "/", "-", "\\"];
+        let spinner = vec!["|", "/", "-", "\\"];
         let mut spin_idx = 0usize;
         let reference_pi = std::f64::consts::PI;
 
