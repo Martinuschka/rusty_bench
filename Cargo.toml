@@ -1,6 +1,10 @@
 [package]
 name = "rusty_bench"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["Martinuschka"]
 
 [dependencies]
+rand = "0.8"
+ctrlc = "3.2"
+core_affinity = "0.6"
