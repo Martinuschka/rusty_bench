@@ -108,14 +108,14 @@ fn human_bytes(n: u64) -> String {
 }
 
 fn main() {
+    // Print an ASCII-stylized PI logo/banner right after startup
+    print_pi_logo();
+    
     println!("rusty_bench — Pi benchmark (Monte Carlo)");
     println!("Note: this benchmark uses a Monte Carlo estimator and verifies digits using f64 precision (~15 digits max).");
     println!("Press Ctrl+C at any time to interrupt the running benchmark and return to the prompts.\n");
 
-    // Print an ASCII-stylized PI logo/banner right after startup
-    print_pi_logo();
-
-    // Shared stop flag used by the Ctrl+C handler and by threads
+        // Shared stop flag used by the Ctrl+C handler and by threads
     let stop_flag = Arc::new(AtomicBool::new(false));
     // install Ctrl+C handler once
     {
