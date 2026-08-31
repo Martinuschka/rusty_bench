@@ -12,6 +12,26 @@ fn clear_screen() {
     print!("\x1B[2J\x1B[H");
 }
 
+fn print_pi_logo() {
+    // A small ASCII-styled PI logo/banner printed at startup
+    let logo = r#"
+  ____  _____ 
+ |  _ \|_   _|
+ | |_) | | |  
+ |  __/  | |  
+ |_|     |_|  
+
+  ____  _           _             
+ |  _ \(_)_ __   __| | __ _ _ __  
+ | |_) | | '_ \ / _` |/ _` | '_ \ 
+ |  __/| | | | | (_| | (_| | | | |
+ |_|   |_|_| |_|\__,_|\__,_|_| |_|
+
+          π (Pi) Benchmark
+"#;
+    println!("{}", logo);
+}
+
 fn matched_digits(estimate: f64, reference: f64, max_check: usize) -> usize {
     // Compare decimal digits after the decimal point
     if !estimate.is_finite() {
@@ -97,6 +117,9 @@ fn main() {
     println!("rusty_bench — Pi benchmark (Monte Carlo)");
     println!("Note: this benchmark uses a Monte Carlo estimator and verifies digits using f64 precision (~15 digits max).");
     println!("Press Ctrl+C at any time to interrupt the running benchmark and return to the prompts.\n");
+
+    // Print an ASCII-styled PI logo/banner right after startup
+    print_pi_logo();
 
     // Shared stop flag used by the Ctrl+C handler and by threads
     let stop_flag = Arc::new(AtomicBool::new(false));
