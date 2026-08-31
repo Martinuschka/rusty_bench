@@ -1,6 +1,9 @@
 [package]
-name = "rusty_bench"
+name = "pi-benchmark"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+core_affinity = "=0.6.1"
+ctrlc = "=3.5.2"
+rand = "=0.8.8"
