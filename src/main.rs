@@ -15,7 +15,7 @@ fn clear_screen() {
 fn print_pi_logo() {
     // Medium pi shape using only '#' and spaces
     let logo = r#"
-###############
+ ###############
     ### ###    
     ### ###    
     ### ###    
@@ -271,5 +271,43 @@ fn main() {
 
         // small pause to ensure the user sees the final output before re-prompting
         // reset stop_flag for next round is done at loop top
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_matched_digits_exact() {
+        // For identical numbers and max_check=5 we expect 1 (leading digit) + 5 digits = 6
+        let m = matched_digits(std::f64::consts::PI, std::f64::consts::PI, 5);
+        assert_eq!(m, 6);
+    }
+
+    #[test]
+    fn test_matched_digits_nan() {
+        assert_eq!(matched_digits(f64::NAN, std::f64::consts::PI, 10), 0);
+    }
+
+    #[test]
+    fn test_human_bytes_small() {
+        assert_eq!(human_bytes(42), "42");
+    }
+
+    #[test]
+    fn test_human_bytes_k() {
+        assert_eq!(human_bytes(1_234), "1.23K");
+    }
+
+    #[test]
+    fn test_human_bytes_m() {
+        assert_eq!(human_bytes(1_234_567), "1.23M");
+    }
+
+    #[test]
+    fn test_human_bytes_b() {
+        assert_eq!(human_bytes(1_234_567_890), "1.23B");
     }
 }
