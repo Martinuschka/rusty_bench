@@ -13,15 +13,19 @@ fn clear_screen() {
 }
 
 fn print_pi_logo() {
-    // ASCII-styled banner with "rusty bench" printed at startup (all lower case)
+    // ASCII-stylized pi (π) printed at startup
     let logo = r#"
-  ____            _           ____                     _       
- |  _ \ ___  __ _| |_ ___    | __ )  ___  __ _ _ __ ___| |__    
- | |_) / _ \/ _` | __/ _ \   |  _ \ / _ \/ _` | '__/ __| '_ \   
- |  _ <  __/ (_| | || (_) |  | |_) |  __/ (_| | | | (__| | | |  
- |_| \_\___|\__,_|\__\___/   |____/ \___|\__,_|_|  \___|_| |_|  
+      _______ _______
+     |  ___  |  ___  |
+     | |   | | |   | |
+     | |   | | |   | |
+     | |___| | |___| |
+     |_______|_______|
+           | |
+           | |
+           |_|
 
-                rusty bench — π (pi) benchmark
+           π (pi) benchmark
 "#;
     println!("{}", logo);
 }
@@ -112,7 +116,7 @@ fn main() {
     println!("Note: this benchmark uses a Monte Carlo estimator and verifies digits using f64 precision (~15 digits max).");
     println!("Press Ctrl+C at any time to interrupt the running benchmark and return to the prompts.\n");
 
-    // Print an ASCII-styled PI logo/banner right after startup
+    // Print an ASCII-stylized PI logo/banner right after startup
     print_pi_logo();
 
     // Shared stop flag used by the Ctrl+C handler and by threads
