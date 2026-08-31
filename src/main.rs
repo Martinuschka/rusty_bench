@@ -13,21 +13,15 @@ fn clear_screen() {
 }
 
 fn print_pi_logo() {
-    // A small ASCII-styled PI logo/banner printed at startup
+    // ASCII-styled banner with "rusty bench" printed at startup
     let logo = r#"
-  ____  _____ 
- |  _ \|_   _|
- | |_) | | |  
- |  __/  | |  
- |_|     |_|  
+  ____            _           ____                     _       
+ |  _ \ ___  __ _| |_ ___    | __ )  ___  __ _ _ __ ___| |__    
+ | |_) / _ \/ _` | __/ _ \   |  _ \ / _ \/ _` | '__/ __| '_ \   
+ |  _ <  __/ (_| | || (_) |  | |_) |  __/ (_| | | | (__| | | |  
+ |_| \_\___|\__,_|\__\___/   |____/ \___|\__,_|_|  \___|_| |_|  
 
-  ____  _           _             
- |  _ \(_)_ __   __| | __ _ _ __  
- | |_) | | '_ \ / _` |/ _` | '_ \ 
- |  __/| | | | | (_| | (_| | | | |
- |_|   |_|_| |_|\__,_|\__,_|_| |_|
-
-          π (Pi) Benchmark
+                rusty bench — π (Pi) Benchmark
 "#;
     println!("{}", logo);
 }
