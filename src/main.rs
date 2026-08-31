@@ -1,6 +1,7 @@
 use core_affinity;
 use ctrlc;
 use rand::Rng;
+use rusty_bench::{matched_digits, human_bytes};
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -24,32 +25,6 @@ fn print_pi_logo() {
     ### ###    
 "#;
     println!("{}", logo);
-}
-
-fn matched_digits(estimate: f64, reference: f64, max_check: usize) -> usize {
-    // Compare decimal digits after the decimal point
-    if !estimate.is_finite() {
-        return 0;
-    }
-    // We will compare as strings up to max_check but limited by f64 precision (~15)
-    let max_check = max_check.min(15);
-    // Format with max_check digits
-    let est_s = format!("{:.1$}", estimate, max_check);
-    let ref_s = format!("{:.1$}", reference, max_check);
-    // Remove the decimal point and the leading '3' so we count digits after the point equally
-    let est_digits: String = est_s.chars().filter(|c| c.is_ascii_digit()).collect();
-    let ref_digits: String = ref_s.chars().filter(|c| c.is_ascii_digit()).collect();
-    // Compare starting from the first digit (which includes digits before decimal too),
-    // but we'll count from start; that effectively checks initial digits including the '3'.
-    let mut matched = 0usize;
-    for (a, b) in est_digits.chars().zip(ref_digits.chars()) {
-        if a == b {
-            matched += 1;
-        } else {
-            break;
-        }
-    }
-    matched
 }
 
 /// Prompt for a usize value, reading input until a valid number is entered.
@@ -94,19 +69,6 @@ fn prompt_digits_or_quit(prompt: &str) -> Option<usize> {
     }
 }
 
-fn human_bytes(n: u64) -> String {
-    // format large integers in a readable way
-    if n < 1_000 {
-        n.to_string()
-    } else if n < 1_000_000 {
-        format!("{:.2}K", n as f64 / 1_000f64)
-    } else if n < 1_000_000_000 {
-        format!("{:.2}M", n as f64 / 1_000_000f64)
-    } else {
-        format!("{:.2}B", n as f64 / 1_000_000_000f64)
-    }
-}
-
 fn main() {
     // Print an ASCII-stylized PI logo/banner right after startup
     print_pi_logo();
@@ -115,7 +77,7 @@ fn main() {
     println!("Note: this benchmark uses a Monte Carlo estimator and verifies digits using f64 precision (~15 digits max).");
     println!("Press Ctrl+C at any time to interrupt the running benchmark and return to the prompts.\n");
 
-        // Shared stop flag used by the Ctrl+C handler and by threads
+    // Shared stop flag used by the Ctrl+C handler and by threads
     let stop_flag = Arc::new(AtomicBool::new(false));
     // install Ctrl+C handler once
     {
@@ -271,43 +233,5 @@ fn main() {
 
         // small pause to ensure the user sees the final output before re-prompting
         // reset stop_flag for next round is done at loop top
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_matched_digits_exact() {
-        // For identical numbers and max_check=5 we expect 1 (leading digit) + 5 digits = 6
-        let m = matched_digits(std::f64::consts::PI, std::f64::consts::PI, 5);
-        assert_eq!(m, 6);
-    }
-
-    #[test]
-    fn test_matched_digits_nan() {
-        assert_eq!(matched_digits(f64::NAN, std::f64::consts::PI, 10), 0);
-    }
-
-    #[test]
-    fn test_human_bytes_small() {
-        assert_eq!(human_bytes(42), "42");
-    }
-
-    #[test]
-    fn test_human_bytes_k() {
-        assert_eq!(human_bytes(1_234), "1.23K");
-    }
-
-    #[test]
-    fn test_human_bytes_m() {
-        assert_eq!(human_bytes(1_234_567), "1.23M");
-    }
-
-    #[test]
-    fn test_human_bytes_b() {
-        assert_eq!(human_bytes(1_234_567_890), "1.23B");
     }
 }
