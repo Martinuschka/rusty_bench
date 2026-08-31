@@ -13,19 +13,15 @@ fn clear_screen() {
 }
 
 fn print_pi_logo() {
-    // ASCII-stylized pi (π) printed at startup
+    // Medium pi shape using only '#' and spaces
     let logo = r#"
-      _______ _______
-     |  ___  |  ___  |
-     | |   | | |   | |
-     | |   | | |   | |
-     | |___| | |___| |
-     |_______|_______|
-           | |
-           | |
-           |_|
-
-           π (pi) benchmark
+###############
+    ### ###    
+    ### ###    
+    ### ###    
+    ### ###    
+    ### ###    
+    ### ###    
 "#;
     println!("{}", logo);
 }
