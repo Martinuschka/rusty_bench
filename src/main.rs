@@ -1,5 +1,6 @@
 use core_affinity;
 use ctrlc;
+use rand::rngs::ThreadRng;
 use rand::Rng;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -168,7 +169,7 @@ fn main() {
                     // best-effort: ignore failures
                     core_affinity::set_for_current(core);
                 }
-                let mut rng = rand::thread_rng();
+                let mut rng: ThreadRng = rand::thread_rng();
                 while !stop.load(Ordering::Relaxed) {
                     // generate a batch of samples to amortize overhead
                     let batch = 1_000usize;
