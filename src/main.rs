@@ -348,7 +348,11 @@ fn draw_progress(
 }
 
 fn clear_progress_line() {
-    print!("\r{}   ", " ".repeat(200));
+    // Erase the entire current line and move the cursor to column 0.
+    // The ANSI sequence "\x1B[2K" clears the line, and "\r" returns to start.
+    // This avoids leaving the cursor after a long run of spaces which can wrap
+    // and cause the next println! to be split across lines.
+    print!("\x1B[2K\r");
     let _ = io::stdout().flush();
 }
 
