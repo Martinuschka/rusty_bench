@@ -1,32 +1,58 @@
-# rusty_bench
+# rusty_bench - π Calculator Benchmark
 
-A small interactive Rust CLI benchmark that estimates Pi using a parallel Monte Carlo method.
+A Rust-based Monte Carlo simulation benchmark for estimating the value of π using multi-threading with CPU core pinning.
 
-Features:
-- Interactive prompts asking how many correct digits to run for and how many threads to use.
-- 0 digits means "run until cancelled" (Ctrl+C).
-- Spawns the requested number of worker threads and attempts to pin each worker to a CPU core (best-effort) using the `core_affinity` crate.
-- Shows a simple ASCII progress display in the console while running.
-- Allows interruption (Ctrl+C) and then returns to the prompts so you can start another run.
+## Features
+- **Monte Carlo π estimation** using random point generation
+- **Thread pinning** to specific CPU cores via `core_affinity` crate
+- Real-time progress visualization with:
+   - Accuracy percentage
+   - Sampling rate
+   - Current estimate of π
+   - Thread utilization information
+- Graceful shutdown via Ctrl+C
+- Input validation for target digits (0-15) and thread counts
+- Comprehensive test suite covering edge cases and core functionality
 
-Notes and limitations:
-- This implementation uses a Monte Carlo estimator and verifies digits using f64 precision (about 15 decimal digits). Asking for more than ~15 digits is not meaningful here.
-- The program is intended as a benchmark / stress test rather than a production-grade Pi digit calculator.
+## Usage
 
-How to build and run:
+To run the benchmark:
+```shell script
+cargo run
+```
 
-1. Install Rust (https://rustup.rs/) if you don't have it.
-2. Build:
 
-   cargo build --release
+### Interaction Guide
+1. When prompted, enter:
+   - Number of correct π digits to calculate (0 = unlimited)
+   - Number of threads to use (auto-limited by available CPU cores)
+2. Press Enter to start
+3. Use Ctrl+C at any time to stop the calculation
 
-3. Run:
+Example session:
+```
+=== Pi benchmark ===
+Enter 0 digits to run until interrupted. Enter q at a prompt to quit.
+How many correct digits of Pi? (0 = run until Ctrl+C, q = quit): 5
+How many threads should be used? (q = quit): 4
+[############################] 100.0% | digits 5/5 | est=3.14159 | samples=1.23e+06 | 1.23e+05 pts/s | threads=4 | 10.23s
+Reached target of 5 correct digit(s).
+Pi estimate: 3.14159
+Total runtime: 10.23s
+```
 
-   cargo run --release
 
-Dependencies used:
-- rand: random number generation for Monte Carlo sampling
-- ctrlc: graceful Ctrl+C handling
-- core_affinity: best-effort CPU core pinning for worker threads
+## Dependencies
 
-If you'd like a version that computes digits deterministically (e.g. using arbitrary-precision arithmetic and a convergent algorithm) I can add that as an alternative mode, but it will require bigger dependencies (e.g. rug) and a different approach to parallelization and verifying digits.
+The project requires the following Rust crates:
+- `core_affinity` For CPU core pinning
+- `ctrlc` For handling Ctrl+C interrupts
+- `rand` For random number generation
+
+These dependencies are automatically managed by Cargo.
+
+## Notes
+- The program uses a batch size of 65,536 points per thread iteration for performance
+- Accuracy is calculated using a tolerance-based comparison against π
+- If core affinity enumeration fails, threads will not be pinned but will still run in parallel
+- The maximum achievable precision with f64 is approximately 15 digits

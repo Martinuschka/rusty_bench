@@ -362,7 +362,7 @@ fn clear_progress_line() {
     let _ = io::stdout().flush();
 }
 
-pub fn print_banner() {
+fn print_banner() {
     println!(
         r"
     ╔═══════════════════════════════════════════╗
