@@ -1,237 +1,353 @@
-use core_affinity;
-use ctrlc;
+use core_affinity::{CoreId, get_core_ids, set_for_current};
 use rand::Rng;
-use rusty_bench::{matched_digits, human_bytes};
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::thread;
 use std::time::{Duration, Instant};
 
-fn clear_screen() {
-    // simple ANSI clear
-    print!("\x1B[2J\x1B[H");
-}
-
-fn print_pi_logo() {
-    // Medium pi shape using only '#' and spaces
-    let logo = r#"
- ###############
-    ### ###    
-    ### ###    
-    ### ###    
-    ### ###    
-    ### ###    
-    ### ###    
-"#;
-    println!("{}", logo);
-}
-
-/// Prompt for a usize value, reading input until a valid number is entered.
-fn prompt_usize(prompt: &str) -> usize {
-    loop {
-        print!("{}", prompt);
-        io::stdout().flush().ok();
-        let mut input = String::new();
-        if io::stdin().read_line(&mut input).is_err() {
-            println!("Failed to read input. Try again.");
-            continue;
-        }
-        match input.trim().parse::<usize>() {
-            Ok(n) => return n,
-            Err(_) => {
-                println!("Please enter a non-negative integer.");
-            }
-        }
-    }
-}
-
-/// Prompt for the target digits or allow quitting by entering 'q' or 'Q'.
-fn prompt_digits_or_quit(prompt: &str) -> Option<usize> {
-    loop {
-        print!("{}", prompt);
-        io::stdout().flush().ok();
-        let mut input = String::new();
-        if io::stdin().read_line(&mut input).is_err() {
-            println!("Failed to read input. Try again.");
-            continue;
-        }
-        let s = input.trim();
-        if s.eq_ignore_ascii_case("q") {
-            return None;
-        }
-        match s.parse::<usize>() {
-            Ok(n) => return Some(n),
-            Err(_) => {
-                println!("Please enter a non-negative integer or 'q' to quit.");
-            }
-        }
-    }
-}
+static STOP: AtomicBool = AtomicBool::new(false);
 
 fn main() {
-    // Print an ASCII-stylized PI logo/banner right after startup
-    print_pi_logo();
-    
-    println!("rusty_bench — Pi benchmark (Monte Carlo)");
-    println!("Note: this benchmark uses a Monte Carlo estimator and verifies digits using f64 precision (~15 digits max).");
-    println!("Press Ctrl+C at any time to interrupt the running benchmark and return to the prompts.\n");
+    ctrlc::set_handler(|| {
+        STOP.store(true, Ordering::SeqCst);
+    })
+        .expect("failed to install Ctrl+C handler");
 
-    // Shared stop flag used by the Ctrl+C handler and by threads
-    let stop_flag = Arc::new(AtomicBool::new(false));
-    // install Ctrl+C handler once
-    {
-        let stop = stop_flag.clone();
-        ctrlc::set_handler(move || {
-            stop.store(true, Ordering::SeqCst);
-        })
-        .expect("Error setting Ctrl-C handler");
+    let core_ids = get_core_ids().unwrap_or_default();
+    if core_ids.is_empty() {
+        eprintln!("Warning: could not enumerate CPU cores; threads will not be pinned.");
     }
 
-    loop {
-        // reset stop
-        stop_flag.store(false, Ordering::SeqCst);
+    println!("=== Pi benchmark ===");
+    println!("Enter 0 digits to run until interrupted. Enter q at a prompt to quit.");
 
-        // allow quitting by entering 'q' at the digits prompt
-        let target_digits = match prompt_digits_or_quit("How many correct digits of Pi should the benchmark run for? (0 = run until cancelled, 'q' to exit): ") {
-            None => {
-                println!("Exiting rusty_bench. Goodbye.");
-                return;
-            }
-            Some(n) => n,
+    loop {
+        let target_digits = match ask_target_digits() {
+            Some(value) => value,
+            None => break,
         };
 
-        let num_threads = prompt_usize("How many threads should be used? (1.. = number of worker threads): ");
-        if num_threads == 0 {
-            println!("Number of threads must be >= 1.");
+        let requested_threads = match ask_thread_count() {
+            Some(value) => value,
+            None => break,
+        };
+
+        let available_cores = core_ids.len().max(1) as u64;
+        let threads = requested_threads.min(available_cores);
+
+        if requested_threads > available_cores {
+            eprintln!(
+                "Only {} CPU cores are available, so this run uses {} thread(s) for dedicated cores.",
+                available_cores, threads
+            );
+        }
+
+        STOP.store(false, Ordering::SeqCst);
+        run(target_digits, threads, &core_ids);
+        STOP.store(false, Ordering::SeqCst);
+        println!();
+    }
+
+    println!("Bye.");
+}
+
+fn ask_target_digits() -> Option<u64> {
+    loop {
+        let line = prompt_line(
+            "How many correct digits of Pi? (0 = run until Ctrl+C, q = quit): ",
+        )?;
+
+        if line.is_empty() {
             continue;
         }
 
-        // prepare counters
-        let hits = Arc::new(AtomicU64::new(0));
-        let total = Arc::new(AtomicU64::new(0));
+        if line.eq_ignore_ascii_case("q") || line.eq_ignore_ascii_case("quit") {
+            return None;
+        }
 
-        // get available cores for affinity
-        let cores = core_affinity::get_core_ids().unwrap_or_default();
-        let core_count = cores.len();
-
-        let start = Instant::now();
-
-        // Spawn worker threads
-        let mut handles = Vec::with_capacity(num_threads);
-        for i in 0..num_threads {
-            let hits = hits.clone();
-            let total = total.clone();
-            let stop = stop_flag.clone();
-            let core_opt = cores.get(i % core_count).cloned();
-            let handle = thread::spawn(move || {
-                // try to set affinity for this worker
-                if let Some(core) = core_opt {
-                    // best-effort: ignore failures
-                    core_affinity::set_for_current(core);
+        match line.parse::<u64>() {
+            Ok(value) => {
+                if value == 0 {
+                    return Some(0);
                 }
+
+                if value > 15 {
+                    eprintln!("f64 precision is limited to about 15 digits, so this run will target 15.");
+                    return Some(15);
+                }
+
+                return Some(value);
+            }
+            Err(_) => {
+                eprintln!("Please enter a non-negative whole number, e.g. 0, 5, or 15.");
+            }
+        }
+    }
+}
+
+fn ask_thread_count() -> Option<u64> {
+    loop {
+        let line = prompt_line("How many threads should be used? (q = quit): ")?;
+
+        if line.is_empty() {
+            continue;
+        }
+
+        if line.eq_ignore_ascii_case("q") || line.eq_ignore_ascii_case("quit") {
+            return None;
+        }
+
+        match line.parse::<u64>() {
+            Ok(value) => {
+                if value == 0 {
+                    eprintln!("Please enter at least 1 thread.");
+                } else {
+                    return Some(value);
+                }
+            }
+            Err(_) => {
+                eprintln!("Please enter a positive whole number, e.g. 1, 4, or 16.");
+            }
+        }
+    }
+}
+
+fn prompt_line(msg: &str) -> Option<String> {
+    print!("{}", msg);
+    if io::stdout().flush().is_err() {
+        return None;
+    }
+
+    let mut input = String::new();
+
+    match io::stdin().read_line(&mut input) {
+        Ok(read) => {
+            if STOP.load(Ordering::SeqCst) {
+                println!();
+                STOP.store(false, Ordering::SeqCst);
+                return Some(String::new());
+            }
+
+            if read == 0 {
+                None
+            } else {
+                Some(input.trim().to_string())
+            }
+        }
+        Err(_) => {
+            if STOP.load(Ordering::SeqCst) {
+                println!();
+                STOP.store(false, Ordering::SeqCst);
+                Some(String::new())
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn run(target_digits: u64, threads: u64, core_ids: &[CoreId]) {
+    let total = Arc::new(AtomicU64::new(0));
+    let inside = Arc::new(AtomicU64::new(0));
+    let completed = Arc::new(AtomicBool::new(false));
+    let start = Instant::now();
+
+    let (completed_flag, final_estimate, best_estimate) = std::thread::scope(|scope| {
+        for i in 0..threads {
+            let core = if core_ids.is_empty() {
+                None
+            } else {
+                let index = (i % core_ids.len() as u64) as usize;
+                core_ids.get(index).copied()
+            };
+
+            let total = Arc::clone(&total);
+            let inside = Arc::clone(&inside);
+
+            scope.spawn(move || {
+                if let Some(core) = core {
+                    let _ = set_for_current(core);
+                }
+
                 let mut rng = rand::thread_rng();
-                while !stop.load(Ordering::Relaxed) {
-                    // generate a batch of samples to amortize overhead
-                    let batch = 1_000usize;
-                    let mut local_hits = 0u64;
-                    for _ in 0..batch {
-                        let x: f64 = rng.gen();
-                        let y: f64 = rng.gen();
+                let mut local_total = 0u64;
+                let mut local_inside = 0u64;
+
+                const BATCH: u64 = 65_536;
+
+                loop {
+                    for _ in 0..BATCH {
+                        let x = rng.gen_range(-1.0..1.0);
+                        let y = rng.gen_range(-1.0..1.0);
+
                         if x * x + y * y <= 1.0 {
-                            local_hits += 1;
+                            local_inside += 1;
                         }
+
+                        local_total += 1;
                     }
-                    hits.fetch_add(local_hits, Ordering::Relaxed);
-                    total.fetch_add(batch as u64, Ordering::Relaxed);
+
+                    total.fetch_add(local_total, Ordering::Relaxed);
+                    inside.fetch_add(local_inside, Ordering::Relaxed);
+
+                    local_total = 0;
+                    local_inside = 0;
+
+                    if STOP.load(Ordering::SeqCst) {
+                        break;
+                    }
                 }
             });
-            handles.push(handle);
         }
 
-        // Monitoring loop: update ASCII progress
-        let mut last_total = 0u64;
-        let spinner = vec!["|", "/", "-", "\\"];
-        let mut spin_idx = 0usize;
-        let reference_pi = std::f64::consts::PI;
+        let mut best_digits = 0u64;
+        let mut best_est = f64::NAN;
+        let mut last_est = f64::NAN;
 
         loop {
-            if stop_flag.load(Ordering::SeqCst) {
+            if STOP.load(Ordering::SeqCst) {
                 break;
             }
-            let t = total.load(Ordering::Relaxed);
-            let h = hits.load(Ordering::Relaxed);
-            let elapsed = start.elapsed().as_secs_f64();
-            let estimate = if t == 0 { 0.0 } else { 4.0 * (h as f64) / (t as f64) };
-            let matched = matched_digits(estimate, reference_pi, if target_digits==0 {15} else {target_digits});
 
-            // Progress text
-            clear_screen();
-            println!("rusty_bench — Pi benchmark (Monte Carlo)");
-            println!("Threads: {}  Cores detected: {}", num_threads, core_count);
-            println!("Target digits: {}  (0 = run until cancelled)", target_digits);
-            println!("Elapsed: {:.2}s  Samples: {}  Hits: {}", elapsed, human_bytes(t), human_bytes(h));
-            println!("Estimate: {:.12}  Matched initial digits: {}", estimate, matched);
-            // Show rate
-            let rate = if elapsed > 0.0 { (t as f64) / elapsed } else { 0.0 };
-            println!("Rate: {:.2} samples/sec", rate);
+            let total_samples = total.load(Ordering::SeqCst);
+            let inside_count = inside.load(Ordering::SeqCst);
 
-            // ASCII progress bar when a target is set and >0
-            if target_digits > 0 {
-                let pct = (matched as f64) / (target_digits as f64);
-                let pct = pct.clamp(0.0, 1.0);
-                let width = 40usize;
-                let filled = (pct * (width as f64)).round() as usize;
-                let bar = format!("[{}{}] {:.1}%",
-                                  "#".repeat(filled),
-                                  " ".repeat(width.saturating_sub(filled)),
-                                  pct * 100.0);
-                println!("Target progress: {}", bar);
-            } else {
-                // spinner to show liveness
-                println!("Running... {}", spinner[spin_idx % spinner.len()]);
-                spin_idx = spin_idx.wrapping_add(1);
+            if total_samples > 0 {
+                let estimate = 4.0 * (inside_count as f64) / (total_samples as f64);
+                last_est = estimate;
+
+                let current_digits = correct_digits(estimate);
+
+                if current_digits > best_digits {
+                    best_digits = current_digits;
+                    best_est = estimate;
+                }
+
+                if target_digits > 0 && best_digits >= target_digits {
+                    completed.store(true, Ordering::SeqCst);
+                    STOP.store(true, Ordering::SeqCst);
+                    break;
+                }
+
+                draw_progress(
+                    target_digits,
+                    start,
+                    total_samples,
+                    best_digits,
+                    estimate,
+                    threads,
+                );
             }
 
-            println!("(Press Ctrl+C to stop the benchmark and return to prompts)");
-
-            // Check stop condition when target given: matched digits >= target_digits
-            if target_digits > 0 && matched >= target_digits {
-                // Signal stop
-                stop_flag.store(true, Ordering::SeqCst);
-            }
-
-            // Sleep a bit
-            thread::sleep(Duration::from_millis(250));
-
-            // quick optimization: detect no progress for a while
-            if t == last_total {
-                // still update UI
-            } else {
-                last_total = t;
-            }
+            std::thread::sleep(Duration::from_millis(100));
         }
 
-        // Wait for workers to finish
-        for handle in handles {
-            let _ = handle.join();
-        }
+        (
+            completed.load(Ordering::SeqCst),
+            last_est,
+            best_est,
+        )
+    });
 
-        // final stats
-        let t = total.load(Ordering::Relaxed);
-        let h = hits.load(Ordering::Relaxed);
-        let elapsed = start.elapsed().as_secs_f64();
-        let estimate = if t == 0 { 0.0 } else { 4.0 * (h as f64) / (t as f64) };
+    clear_progress_line();
 
-        clear_screen();
-        println!("rusty_bench — Completed run");
-        println!("Elapsed: {:.2}s", elapsed);
-        println!("Threads: {}  Samples: {}  Hits: {}", num_threads, human_bytes(t), human_bytes(h));
-        println!("Final estimate: {:.12}", estimate);
-        println!("Reference PI: {:.15}", std::f64::consts::PI);
-        println!("(You can start a new run now.)\n");
+    let shown_estimate = if completed_flag && best_estimate.is_finite() {
+        best_estimate
+    } else {
+        final_estimate
+    };
 
-        // small pause to ensure the user sees the final output before re-prompting
-        // reset stop_flag for next round is done at loop top
+    if completed_flag {
+        println!("Reached target of {} correct digit(s).", target_digits);
+    } else {
+        println!("Benchmark stopped.");
     }
+
+    if shown_estimate.is_finite() {
+        println!("Pi estimate: {:.15}", shown_estimate);
+    } else {
+        println!("Pi estimate: 0.0");
+    }
+}
+
+fn correct_digits(estimate: f64) -> u64 {
+    if !estimate.is_finite() {
+        return 0;
+    }
+
+    let error = (estimate - std::f64::consts::PI).abs();
+
+    if error == 0.0 {
+        return 15;
+    }
+
+    let mut digits = 0u64;
+
+    while digits < 15 {
+        let tolerance = 0.5 * 10f64.powi(-(digits as i32));
+
+        if error < tolerance {
+            digits += 1;
+        } else {
+            break;
+        }
+    }
+
+    digits
+}
+
+fn draw_progress(
+    target_digits: u64,
+    start: Instant,
+    total_samples: u64,
+    best_digits: u64,
+    estimate: f64,
+    threads: u64,
+) {
+    let elapsed = start.elapsed().as_secs_f64();
+
+    let progress = if target_digits > 0 {
+        (best_digits as f64 / target_digits as f64).min(1.0)
+    } else {
+        (elapsed % 10.0) / 10.0
+    };
+
+    let width = 28;
+    let filled = (progress * width as f64).round() as usize;
+    let filled = filled.min(width);
+    let bar = "#".repeat(filled) + &"-".repeat(width - filled);
+
+    let percent = progress * 100.0;
+    let target_label = if target_digits == 0 {
+        "-".to_string()
+    } else {
+        target_digits.to_string()
+    };
+
+    let samples = format!("{:.3e}", total_samples as f64);
+    let rate = if elapsed > 0.0 {
+        format!("{:.3e} pts/s", (total_samples as f64) / elapsed)
+    } else {
+        "0 pts/s".to_string()
+    };
+
+    print!(
+        "\r[{}] {:>5.1}% | digits {}/{} | est={:.15} | samples={} | {} | threads={} | {:.1}s   ",
+        bar,
+        percent,
+        best_digits,
+        target_label,
+        estimate,
+        samples,
+        rate,
+        threads,
+        elapsed
+    );
+
+    let _ = io::stdout().flush();
+}
+
+fn clear_progress_line() {
+    print!("\r{}   ", " ".repeat(200));
+    let _ = io::stdout().flush();
 }
