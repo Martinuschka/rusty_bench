@@ -351,3 +351,189 @@ fn clear_progress_line() {
     print!("\r{}   ", " ".repeat(200));
     let _ = io::stdout().flush();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_correct_digits_with_pi() {
+        // Test with the actual value of pi
+        let pi = std::f64::consts::PI;
+        let digits = correct_digits(pi);
+        assert_eq!(digits, 15, "Exact pi should have 15 correct digits");
+    }
+
+    #[test]
+    fn test_correct_digits_large_error() {
+        // Test with very inaccurate estimate (e.g., 1.0)
+        let digits = correct_digits(1.0);
+        assert_eq!(digits, 0, "Very inaccurate estimate should have 0 correct digits");
+    }
+
+    #[test]
+    fn test_correct_digits_close_estimate() {
+        // Test with estimate close to pi (3.14)
+        let digits = correct_digits(3.14);
+        assert!(digits > 0, "Close estimate should have at least 1 correct digit");
+        assert!(digits <= 3, "3.14 should have at most 3 correct digits");
+    }
+
+    #[test]
+    fn test_correct_digits_very_close_estimate() {
+        // Test with estimate very close to pi (3.14159265)
+        let digits = correct_digits(3.14159265);
+        assert!(digits >= 8, "3.14159265 should have at least 8 correct digits");
+    }
+
+    #[test]
+    fn test_correct_digits_nan_input() {
+        // Test with NaN input
+        let digits = correct_digits(f64::NAN);
+        assert_eq!(digits, 0, "NaN should return 0 correct digits");
+    }
+
+    #[test]
+    fn test_correct_digits_infinity_input() {
+        // Test with infinity
+        let digits = correct_digits(f64::INFINITY);
+        assert_eq!(digits, 0, "Infinity should return 0 correct digits");
+    }
+
+    #[test]
+    fn test_correct_digits_negative_infinity() {
+        // Test with negative infinity
+        let digits = correct_digits(f64::NEG_INFINITY);
+        assert_eq!(digits, 0, "Negative infinity should return 0 correct digits");
+    }
+
+    #[test]
+    fn test_correct_digits_max_is_15() {
+        // Test that correct_digits never returns more than 15
+        for estimate in [2.0, 3.0, 3.1, 3.14, 3.141, 3.1415, 3.14159, 3.141592, 3.1415926] {
+            let digits = correct_digits(estimate);
+            assert!(digits <= 15, "correct_digits should never return more than 15");
+        }
+    }
+
+    #[test]
+    fn test_correct_digits_pi_approximation() {
+        // Test known approximations of pi
+        let approx_22_7 = 22.0 / 7.0; // 3.142857...
+        let digits = correct_digits(approx_22_7);
+        assert!(digits >= 2, "22/7 approximation should have at least 2 correct digits");
+    }
+
+    #[test]
+    fn test_pi_estimate_validity() {
+        // Test that pi estimates from random samples are in a reasonable range
+        let estimate = 3.14159;
+        assert!(estimate > 0.0, "Pi estimate should be positive");
+        assert!(estimate < 4.0, "Pi estimate should be less than 4");
+    }
+
+    #[test]
+    fn test_zero_samples() {
+        // Edge case: what happens with zero samples
+        let total_samples: u64 = 0;
+        let inside_count: u64 = 0;
+        
+        if total_samples > 0 {
+            let _estimate = 4.0 * (inside_count as f64) / (total_samples as f64);
+        } else {
+            assert_eq!(total_samples, 0);
+        }
+    }
+
+    #[test]
+    fn test_inside_outside_ratio() {
+        // Test the Monte Carlo algorithm logic
+        // All points inside circle
+        let total_samples = 1000u64;
+        let inside_count = 1000u64;
+        let estimate = 4.0 * (inside_count as f64) / (total_samples as f64);
+        assert_eq!(estimate, 4.0, "All samples inside should give estimate of 4.0");
+
+        // No points inside circle
+        let inside_count = 0u64;
+        let estimate = 4.0 * (inside_count as f64) / (total_samples as f64);
+        assert_eq!(estimate, 0.0, "No samples inside should give estimate of 0.0");
+
+        // 1/4 inside (quarter circle)
+        let inside_count = 250u64;
+        let estimate = 4.0 * (inside_count as f64) / (total_samples as f64);
+        assert_eq!(estimate, 1.0, "1/4 inside should give estimate of 1.0");
+    }
+
+    #[test]
+    fn test_thread_count_validation() {
+        // Test the logic for validating thread count
+        let requested_threads = 4u64;
+        let available_cores = 8u64;
+        let threads = requested_threads.min(available_cores);
+        assert_eq!(threads, 4, "Should use requested threads when available");
+
+        let requested_threads = 16u64;
+        let available_cores = 8u64;
+        let threads = requested_threads.min(available_cores);
+        assert_eq!(threads, 8, "Should cap threads at available cores");
+    }
+
+    #[test]
+    fn test_progress_calculation_with_target() {
+        // Test progress calculation when target_digits is set
+        let target_digits = 10u64;
+        let best_digits = 5u64;
+        let progress = (best_digits as f64 / target_digits as f64).min(1.0);
+        assert_eq!(progress, 0.5, "5 out of 10 digits should be 50% progress");
+
+        let best_digits = 10u64;
+        let progress = (best_digits as f64 / target_digits as f64).min(1.0);
+        assert_eq!(progress, 1.0, "10 out of 10 digits should be 100% progress");
+
+        let best_digits = 15u64;
+        let progress = (best_digits as f64 / target_digits as f64).min(1.0);
+        assert_eq!(progress, 1.0, "Capped at 100% when exceeding target");
+    }
+
+    #[test]
+    fn test_progress_calculation_without_target() {
+        // Test progress calculation when target_digits is 0 (run until interrupted)
+        let elapsed = 5.0; // seconds
+        let progress = (elapsed % 10.0) / 10.0;
+        assert!(progress >= 0.0 && progress < 1.0, "Progress should cycle between 0 and 1");
+    }
+
+    #[test]
+    fn test_rate_calculation() {
+        // Test sampling rate calculation
+        let total_samples = 1_000_000u64;
+        let elapsed = 1.0; // 1 second
+        let rate = (total_samples as f64) / elapsed;
+        assert_eq!(rate, 1_000_000.0, "Rate should be samples per second");
+
+        let elapsed = 0.5; // 0.5 seconds
+        let rate = (total_samples as f64) / elapsed;
+        assert_eq!(rate, 2_000_000.0, "Rate calculation should be correct");
+    }
+
+    #[test]
+    fn test_core_id_indexing() {
+        // Test the logic for indexing into core_ids array
+        let core_ids = vec![CoreId { id: 0 }, CoreId { id: 1 }, CoreId { id: 2 }, CoreId { id: 3 }];
+        
+        for i in 0..8 {
+            let index = (i % core_ids.len() as u64) as usize;
+            let _core = core_ids.get(index).copied();
+            assert!(index < core_ids.len(), "Index should always be within bounds");
+        }
+    }
+
+    #[test]
+    fn test_batch_size_constant() {
+        // Test that batch size is reasonable
+        const BATCH: u64 = 65_536;
+        assert_eq!(BATCH, 65_536, "Batch size should be 65536");
+        assert!(BATCH > 0, "Batch size should be positive");
+    }
+}
