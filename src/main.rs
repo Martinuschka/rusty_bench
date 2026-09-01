@@ -1,4 +1,3 @@
-
 use core_affinity::{CoreId, get_core_ids, set_for_current};
 use rand::Rng;
 use std::io::{self, Write};
