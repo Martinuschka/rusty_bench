@@ -251,6 +251,9 @@ fn run(target_digits: u64, threads: u64, core_ids: &[CoreId]) {
 
     clear_progress_line();
 
+    let elapsed = start.elapsed();
+    let elapsed_secs = elapsed.as_secs_f64();
+
     let shown_estimate = if completed_flag && best_estimate.is_finite() {
         best_estimate
     } else {
@@ -268,6 +271,8 @@ fn run(target_digits: u64, threads: u64, core_ids: &[CoreId]) {
     } else {
         println!("Pi estimate: 0.0");
     }
+
+    println!("Total runtime: {:.2}s", elapsed_secs);
 }
 
 fn correct_digits(estimate: f64) -> u64 {
