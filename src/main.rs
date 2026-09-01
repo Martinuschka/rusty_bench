@@ -18,7 +18,8 @@ fn main() {
         eprintln!("Warning: could not enumerate CPU cores; threads will not be pinned.");
     }
 
-    println!("=== Pi benchmark ===");
+    //println!("=== Pi benchmark ===");
+    print_banner();
     println!("Enter 0 digits to run until interrupted. Enter q at a prompt to quit.");
 
     loop {
@@ -359,6 +360,25 @@ fn clear_progress_line() {
     // and cause the next println! to be split across lines.
     print!("\x1B[2K\r");
     let _ = io::stdout().flush();
+}
+
+pub fn print_banner() {
+    println!(
+        r"
+    ╔═══════════════════════════════════════════╗
+    ║                                           ║
+    ║     ██████╗ ██╗   ██╗███████╗████████╗    ║
+    ║     ██╔══██╗██║   ██║██╔════╝╚══██╔══╝    ║
+    ║     ██████╔╝██║   ██║███████╗   ██║       ║
+    ║     ██╔══██╗██║   ██║╚════██║   ██║       ║
+    ║     ██║  ██║╚██████╔╝███████║   ██║       ║
+    ║     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝       ║
+    ║                                           ║
+    ║        rusty_bench — π Calculator         ║
+    ║                                           ║
+    ╚═══════════════════════════════════════════╝
+"
+    );
 }
 
 #[cfg(test)]
