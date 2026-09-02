@@ -1,6 +1,8 @@
 # rusty_bench - π Calculator Benchmark
 
 A Rust-based Monte Carlo simulation benchmark for estimating the value of π using multi-threading with CPU core pinning.
+Implementation was done using different LLMs in comparison (individual branches):
+[prompt.md](prompt.md)
 
 ## Features
 - **Monte Carlo π estimation** using random point generation
@@ -18,7 +20,7 @@ A Rust-based Monte Carlo simulation benchmark for estimating the value of π usi
 
 To run the benchmark:
 ```shell script
-cargo run
+cargo run --release
 ```
 
 
