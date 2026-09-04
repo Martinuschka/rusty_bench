@@ -7,7 +7,4 @@ this is an new rust project. I want to create a CLI benchmark based on Rust. It 
 ```
 
 # llms
-Qwen3.8-27b
-nouscoder-14b
 GitHub (Kimi K2.7 Code ?)
-Cursor (composer 2.5 ?)
