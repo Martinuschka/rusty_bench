@@ -7,4 +7,4 @@ compare different models for execution of given prompt.
 # llms
 - Qwen3.8-27b (used for `main`)
 - nouscoder-14b
-- GitHub (Kimi K2.7 Code ?)
+- GitHub (Kimi K2.7 Code)
