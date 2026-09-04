@@ -123,7 +123,7 @@ fn run_parallel(m: u64, threads: usize) {
                     let percentage = (current_processed as f64 / total_terms as f64) * 100.0;
                     print_progress(percentage, progress_bar_length);
                     // Calculate how many correct digits we have so far
-                    let mut ts = total_sum.lock().unwrap();
+                    let ts = total_sum.lock().unwrap();
                     let pi_approx = 4.0 * *ts;
                     let correct_digits = count_correct_digits(pi_approx, reference_pi);
                     println!("Current approximation: {:.15} ({} correct digits)", pi_approx, correct_digits);
@@ -147,7 +147,7 @@ fn run_parallel(m: u64, threads: usize) {
     }
 
     // Final approximation and correct digits
-    let mut ts = total_sum.lock().unwrap();
+    let ts = total_sum.lock().unwrap();
     let pi_approx = 4.0 * *ts;
     let correct_digits = count_correct_digits(pi_approx, reference_pi);
     println!("\nCalculated Pi approximation: {:.15} ({} correct digits)", pi_approx, correct_digits);
@@ -213,7 +213,7 @@ fn run_indefinite(threads: usize) {
                 if global_k > current_processed {
                     current_processed = global_k;
                     print_progress((current_processed as f64 / 1_000_000.0) * 100.0, progress_bar_length);
-                    let mut ts = total_sum.lock().unwrap();
+                    let ts = total_sum.lock().unwrap();
                     let pi_approx = 4.0 * *ts;
                     let correct_digits = count_correct_digits(pi_approx, reference_pi);
                     println!("Current approximation: {:.15} ({} correct digits)", pi_approx, correct_digits);
