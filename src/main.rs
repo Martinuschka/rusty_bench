@@ -1,194 +1,174 @@
-use std::sync::{Arc};
-use std::sync::atomic::{AtomicBool, AtomicUsize};
-use std::thread;
-use std::time::Duration;
-use indicatif::{ProgressBar, ProgressStyle};
 use std::io::{self, Write};
+//use std::time::{Instant};
+use rayon::prelude::*;
+use std::cmp;
 
-fn main() {
+// ASCII Progress Bar
+fn draw_progress_bar(percentage: f64, width: usize) {
+    let bar_width = cmp::min(width as u8, 50);
+    let filled = (percentage * bar_width as f64).floor() as u8;
+    let empty = bar_width - filled;
+
+    print!("\r[");
+    for _ in 0..filled {
+        print!("=");
+    }
+    for _ in 0..empty {
+        print!(" ");
+    }
+    print!("] {:.2}%", percentage);
+    io::stdout().flush().unwrap();
+}
+
+// Chudnovsky Algorithm
+fn chudnovsky_algorithm(n_terms: usize) -> f64 {
+    let mut sum = 0.0;
+    for k in 0..n_terms {
+        let numerator = (-1_i32.pow(k as u32) as f64) * ((6 * k - 1) as f64).powf(3.0);
+        let denominator = (k as f64).powf(3.) * (2 * k + 1) as f64 * (2 * k + 3) as f64 * (2 * k + 5) as f64 * (2 * k + 7) as f64;
+        sum += numerator / denominator;
+    }
+    let pi = 1.0 / (sum * 4.0 * f64::sqrt(10_000_000_000.0));
+    pi
+}
+
+// Function to run the algorithm in parallel with rayon.
+fn calculate_pi_parallel(n_terms: usize, num_threads: Option<usize>) -> f64 {
+    let n_terms = if n_terms == 0 { 1_000_000 } else { n_terms };
+    let mut sum = 0.0;
+
+    // If num_threads is Some(x), use that number of threads.
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads.unwrap_or(4))
+        .build()
+        .unwrap()
+        .scope(|s| {
+            for chunk in n_terms / 8..n_terms + 1 {
+                let start = (chunk - 1) * 8;
+                let end = chunk * 8;
+
+                s.spawn(move |_| {
+                    let mut local_sum = 0.0;
+                    for k in start..end {
+                        let numerator = (-1_i32.pow(k as u32) as f64) * ((6 * k - 1) as f64).powf(3.0);
+                        let denominator = (k as f64).powf(3.) * (2 * k + 1) as f64 * (2 * k + 3) as f64 * (2 * k + 5) as f64 * (2 * k + 7) as f64;
+                        local_sum += numerator / denominator;
+                    }
+                    sum += local_sum;
+                });
+            }
+        });
+
+    let pi = 1.0 / (sum * 4.0 * f64::sqrt(10_000_000_000.0));
+    pi
+}
+
+// User input handling function
+fn get_user_input() -> (usize, Option<usize>) {
+    let mut digits_input = String::new();
+    let mut threads_input = String::new();
+
     loop {
-        // Prompt for user input
-        let mut digits_input = String::new();
-        print!("Enter number of correct digits of Pi (0 to exit): ");
+        print!("Enter number of correct Pi digits to calculate (0 for continuous): ");
         io::stdout().flush().unwrap();
         io::stdin().read_line(&mut digits_input).expect("Failed to read line");
 
-        let mut thread_input = String::new();
-        print!("Enter number of threads: ");
+        match digits_input.trim().parse::<usize>() {
+            Ok(_) => break,
+            Err(_) => println!("Please enter a valid number."),
+        }
+    }
+
+    loop {
+        print!("Enter number of threads (0 for all cores): ");
         io::stdout().flush().unwrap();
-        io::stdin().read_line(&mut thread_input).expect("Failed to read line");
+        io::stdin().read_line(&mut threads_input).expect("Failed to read line");
 
-        // Parse inputs
-        let target_digits: u32 = match digits_input.trim().parse() {
-            Ok(n) => n,
-            Err(_) => 0,
-        };
-
-        let num_threads: usize = match thread_input.trim().parse() {
-            Ok(n) => n,
-            Err(_) => 1, // Default to one thread if invalid
-        };
-
-        if target_digits == 0 {
-            run_indefinite(num_threads);
-        } else {
-            run_for_digits(target_digits, num_threads);
+        match threads_input.trim().parse::<usize>() {
+            Ok(_) => break,
+            Err(_) => println!("Please enter a valid number of threads."),
         }
     }
-}
 
-fn run_indefinite(thread_count: usize) {
-    let exit_flag = Arc::new(AtomicBool::new(false));
-    let counter = Arc::new(AtomicUsize::new(0));
-
-    // Create a progress bar that updates indefinitely
-    let pb = ProgressBar::new(1_000_000_000);
-    pb.set_style(
-        ProgressStyle::default().template("{spinner} {msg} | {wide_bar}")
-            .unwrap()
-    );
-
-    // Signal handler thread to detect Ctrl+C
-    let exit_flag_clone = exit_flag.clone();
-    thread::spawn(move || {
-        if let Ok(sig) = signal_hook::iterator::Signals::new(&[signal_hook::consts::SIGINT])
-            .expect("Failed to create signal handler")
-            .wait()
-        {
-            if sig == signal_hook::consts::SIGINT {
-                exit_flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
-            }
-        }
-    });
-
-    // Spawn threads for computation
-    let pb_clone = pb.clone();
-    let counter_clone = counter.clone();
-
-    for i in 0..thread_count {
-        let counter = counter_clone.clone();
-        let exit_flag = exit_flag.clone();
-
-        thread::spawn(move || {
-            let mut sum: f64 = 0.0;
-            let thread_id = i + 1;
-
-            while !exit_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                // Simulate Leibniz series computation
-                for k in (thread_id * 1_000_000)..((thread_id + 1) * 1_000_000) {
-                    sum += 4.0 * (-1.0).powi(k as i32) / (2 * k as f64 + 1.0);
-
-                    // Update progress every million terms
-                    if k % 1_000_000 == 0 {
-                        counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    }
-                }
-
-                // Sleep to prevent CPU burn
-                thread::sleep(Duration::from_millis(5));
-            }
-        });
-    }
-
-    // Update progress bar in main thread
-    while !exit_flag.load(std::sync::atomic::Ordering::Relaxed) {
-        pb.inc(counter.load(std::sync::atomic::Ordering::Relaxed) as u64 - pb.position());
-        thread::sleep(Duration::from_millis(10));
-    }
-
-    // Print final result (though not accurate for indefinite runs)
-    println!("\nComputation stopped by user.");
-}
-
-fn run_for_digits(digits: u32, thread_count: usize) {
-    let mut total_terms_per_thread = 0;
-
-    // Estimate terms needed based on digits (very rough approximation)
-    if digits <= 10 {
-        total_terms_per_thread = 1_000_000; // For low digits
+    let num_threads = if threads_input.trim() == "0" {
+        None
     } else {
-        total_terms_per_thread = 10_000_000; // For higher precision
-    }
+        Some(threads_input.trim().parse::<usize>().unwrap())
+    };
 
-    let total_terms: usize = total_terms_per_thread * thread_count;
-    let exit_flag = Arc::new(AtomicBool::new(false));
-    let counter = Arc::new(AtomicUsize::new(0));
+    (digits_input.trim().parse::<usize>().unwrap(), num_threads)
+}
 
-    // Create progress bar with known length
-    let pb = ProgressBar::new(total_terms as u64);
-    let pb = ProgressBar::new(total_terms as u64);
-    pb.set_style(
-        ProgressStyle::default().template("{spinner} {msg} | {wide_bar} {percent}%")
-            .unwrap()
-    );
+// Main function with loop for restarting after interruption
+fn main() {
+    loop {
+        let (num_digits, num_threads) = get_user_input();
 
-    // Signal handler thread to detect Ctrl+C
-    let exit_flag_clone = exit_flag.clone();
-    thread::spawn(move || {
-        if let Ok(sig) = signal_hook::iterator::Signals::new(&[signal_hook::consts::SIGINT])
-            .expect("Failed to create signal handler")
-            .wait()
-        {
-            if sig == signal_hook::consts::SIGINT {
-                exit_flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+        if num_digits == 0 && num_threads.is_none() {
+            println!("Running benchmark until interrupted. Press Ctrl+C to stop.");
+        } else {
+            println!(
+                "Starting calculation of Pi with {} digits using {} threads...",
+                num_digits,
+                match &num_threads {
+                    Some(t) => t.to_string(),
+                    None => "all available".to_string(),
+                }
+            );
+        }
+
+        //let start_time = Instant::now();
+        let mut calculated_pi: f64 = 0.0;
+        let mut total_terms = 0;
+
+        // Progress tracking
+        let progress_width = 50;
+
+        loop {
+            //let elapsed = start_time.elapsed().as_secs();
+
+            if num_digits > 0 && total_terms >= num_digits * 1_000_000 / 4 { // rough estimate of terms needed per digit
+                calculated_pi = calculate_pi_parallel(num_digits, num_threads);
+                break;
+            }
+
+            let percentage = (total_terms as f64 / (num_digits * 1_000_000 / 4) as f64) * 100.0;
+
+            draw_progress_bar(percentage, progress_width);
+
+            // Simulate workload for the sake of progress bar
+            total_terms += 1;
+            //std::thread::sleep(Duration::from_millis(25)); // sleep to simulate work
+
+            if num_digits == 0 {
+                // Let user interrupt with Ctrl+C
+                let mut input = String::new();
+                match io::stdin().read_line(&mut input) {
+                    Ok(_) => {
+                        if input.trim() == "q" || input.trim() == "quit" {
+                            break;
+                        }
+                    },
+                    Err(e) => eprintln!("Error reading input: {}", e),
+                }
             }
         }
-    });
 
-    // Collect partial sums from threads
-    let (tx, rx) = crossbeam::channel::unbounded();
+        // Final result
+        draw_progress_bar(100.0, progress_width);
+        println!("\n\nEstimated Pi value: {:.20}\n", calculated_pi);
 
-    for i in 0..thread_count {
-        let tx = tx.clone();
-        let counter = counter.clone();
-        let exit_flag = exit_flag.clone();
-
-        thread::spawn(move || {
-            let mut sum: f64 = 0.0;
-
-            // Each thread handles a portion of terms
-            for k in (i as u64 * total_terms_per_thread) .. ((i + 1) as u64 * total_terms_per_thread) {
-                if exit_flag.load(std::sync::atomic::Ordering::Relaxed) {
+        // Ask user if they want to restart
+        print!("Do you want to run again? (y/n): ");
+        io::stdout().flush().unwrap();
+        let mut choice = String::new();
+        match io::stdin().read_line(&mut choice) {
+            Ok(_) => {
+                if choice.trim() == "n" || choice.trim() == "no" {
                     break;
                 }
-
-                sum += 4.0 * (-1.0).powi(k as i32) / (2 * k as f64 + 1.0);
-
-                // Update progress every million terms
-                if k % 1_000_000 == 0 {
-                    counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                }
-            }
-
-            tx.send(sum).unwrap();
-        });
-    }
-
-    // Update progress bar while waiting for results
-    let mut total_sum = 0.0;
-
-    while !exit_flag.load(std::sync::atomic::Ordering::Relaxed) {
-        pb.inc(counter.load(std::sync::atomic::Ordering::Relaxed) as u64 - pb.position());
-        thread::sleep(Duration::from_millis(10));
-
-        // Check if all threads have finished
-        let mut received = 0;
-        for _ in 0..thread_count {
-            match rx.try_recv() {
-                Ok(sum) => total_sum += sum,
-                Err(crossbeam::channel::TryRecvError::Empty) => continue,
-                Err(_) => break,
-            }
-            received += 1;
-        }
-
-        if received == thread_count {
-            break; // All threads finished
+            },
+            Err(e) => eprintln!("Error reading input: {}", e),
         }
     }
-
-    pb.finish_with_message("Benchmark complete!");
-
-    // Print final Pi estimate (this is just for demonstration)
-    println!("Estimated Pi: {:.10}", total_sum);
 }
