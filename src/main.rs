@@ -1,4 +1,4 @@
-use core_affinity::{CoreId, get_core_ids, set_for_current};
+use core_affinity::{get_core_ids, set_for_current, CoreId};
 use rand::Rng;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -11,7 +11,7 @@ fn main() {
     ctrlc::set_handler(|| {
         STOP.store(true, Ordering::SeqCst);
     })
-        .expect("failed to install Ctrl+C handler");
+    .expect("failed to install Ctrl+C handler");
 
     let core_ids = get_core_ids().unwrap_or_default();
     if core_ids.is_empty() {
@@ -54,9 +54,8 @@ fn main() {
 
 fn ask_target_digits() -> Option<u64> {
     loop {
-        let line = prompt_line(
-            "How many correct digits of Pi? (0 = run until Ctrl+C, q = quit): ",
-        )?;
+        let line =
+            prompt_line("How many correct digits of Pi? (0 = run until Ctrl+C, q = quit): ")?;
 
         if line.is_empty() {
             continue;
@@ -73,7 +72,9 @@ fn ask_target_digits() -> Option<u64> {
                 }
 
                 if value > 15 {
-                    eprintln!("f64 precision is limited to about 15 digits, so this run will target 15.");
+                    eprintln!(
+                        "f64 precision is limited to about 15 digits, so this run will target 15."
+                    );
                     return Some(15);
                 }
 
@@ -243,11 +244,7 @@ fn run(target_digits: u64, threads: u64, core_ids: &[CoreId]) {
             std::thread::sleep(Duration::from_millis(100));
         }
 
-        (
-            completed.load(Ordering::SeqCst),
-            last_est,
-            best_est,
-        )
+        (completed.load(Ordering::SeqCst), last_est, best_est)
     });
 
     clear_progress_line();
@@ -339,15 +336,7 @@ fn draw_progress(
 
     print!(
         "\r[{}] {:>5.1}% | digits {}/{} | est={:.15} | samples={} | {} | threads={} | {:.1}s   ",
-        bar,
-        percent,
-        best_digits,
-        target_label,
-        estimate,
-        samples,
-        rate,
-        threads,
-        elapsed
+        bar, percent, best_digits, target_label, estimate, samples, rate, threads, elapsed
     );
 
     let _ = io::stdout().flush();
@@ -394,14 +383,20 @@ mod tests {
     fn test_correct_digits_large_error() {
         // Test with very inaccurate estimate (e.g., 1.0)
         let digits = correct_digits(1.0);
-        assert_eq!(digits, 0, "Very inaccurate estimate should have 0 correct digits");
+        assert_eq!(
+            digits, 0,
+            "Very inaccurate estimate should have 0 correct digits"
+        );
     }
 
     #[test]
     fn test_correct_digits_close_estimate() {
         // Test with estimate close to pi (3.14)
         let digits = correct_digits(3.14);
-        assert!(digits > 0, "Close estimate should have at least 1 correct digit");
+        assert!(
+            digits > 0,
+            "Close estimate should have at least 1 correct digit"
+        );
         assert!(digits <= 3, "3.14 should have at most 3 correct digits");
     }
 
@@ -409,7 +404,10 @@ mod tests {
     fn test_correct_digits_very_close_estimate() {
         // Test with estimate very close to pi (3.14159265)
         let digits = correct_digits(3.14159265);
-        assert!(digits >= 8, "3.14159265 should have at least 8 correct digits");
+        assert!(
+            digits >= 8,
+            "3.14159265 should have at least 8 correct digits"
+        );
     }
 
     #[test]
@@ -430,15 +428,23 @@ mod tests {
     fn test_correct_digits_negative_infinity() {
         // Test with negative infinity
         let digits = correct_digits(f64::NEG_INFINITY);
-        assert_eq!(digits, 0, "Negative infinity should return 0 correct digits");
+        assert_eq!(
+            digits, 0,
+            "Negative infinity should return 0 correct digits"
+        );
     }
 
     #[test]
     fn test_correct_digits_max_is_15() {
         // Test that correct_digits never returns more than 15
-        for estimate in [2.0, 3.0, 3.1, 3.14, 3.141, 3.1415, 3.14159, 3.141592, 3.1415926] {
+        for estimate in [
+            2.0, 3.0, 3.1, 3.14, 3.141, 3.1415, 3.14159, 3.141592, 3.1415926,
+        ] {
             let digits = correct_digits(estimate);
-            assert!(digits <= 15, "correct_digits should never return more than 15");
+            assert!(
+                digits <= 15,
+                "correct_digits should never return more than 15"
+            );
         }
     }
 
@@ -447,7 +453,10 @@ mod tests {
         // Test known approximations of pi
         let approx_22_7 = 22.0 / 7.0; // 3.142857...
         let digits = correct_digits(approx_22_7);
-        assert!(digits >= 2, "22/7 approximation should have at least 2 correct digits");
+        assert!(
+            digits >= 2,
+            "22/7 approximation should have at least 2 correct digits"
+        );
     }
 
     #[test]
@@ -463,7 +472,7 @@ mod tests {
         // Edge case: what happens with zero samples
         let total_samples: u64 = 0;
         let inside_count: u64 = 0;
-        
+
         if total_samples > 0 {
             let _estimate = 4.0 * (inside_count as f64) / (total_samples as f64);
         } else {
@@ -478,12 +487,18 @@ mod tests {
         let total_samples = 1000u64;
         let inside_count = 1000u64;
         let estimate = 4.0 * (inside_count as f64) / (total_samples as f64);
-        assert_eq!(estimate, 4.0, "All samples inside should give estimate of 4.0");
+        assert_eq!(
+            estimate, 4.0,
+            "All samples inside should give estimate of 4.0"
+        );
 
         // No points inside circle
         let inside_count = 0u64;
         let estimate = 4.0 * (inside_count as f64) / (total_samples as f64);
-        assert_eq!(estimate, 0.0, "No samples inside should give estimate of 0.0");
+        assert_eq!(
+            estimate, 0.0,
+            "No samples inside should give estimate of 0.0"
+        );
 
         // 1/4 inside (quarter circle)
         let inside_count = 250u64;
@@ -527,7 +542,10 @@ mod tests {
         // Test progress calculation when target_digits is 0 (run until interrupted)
         let elapsed = 5.0; // seconds
         let progress = (elapsed % 10.0) / 10.0;
-        assert!(progress >= 0.0 && progress < 1.0, "Progress should cycle between 0 and 1");
+        assert!(
+            progress >= 0.0 && progress < 1.0,
+            "Progress should cycle between 0 and 1"
+        );
     }
 
     #[test]
@@ -546,12 +564,20 @@ mod tests {
     #[test]
     fn test_core_id_indexing() {
         // Test the logic for indexing into core_ids array
-        let core_ids = vec![CoreId { id: 0 }, CoreId { id: 1 }, CoreId { id: 2 }, CoreId { id: 3 }];
-        
+        let core_ids = vec![
+            CoreId { id: 0 },
+            CoreId { id: 1 },
+            CoreId { id: 2 },
+            CoreId { id: 3 },
+        ];
+
         for i in 0..8 {
             let index = (i % core_ids.len() as u64) as usize;
             let _core = core_ids.get(index).copied();
-            assert!(index < core_ids.len(), "Index should always be within bounds");
+            assert!(
+                index < core_ids.len(),
+                "Index should always be within bounds"
+            );
         }
     }
 
