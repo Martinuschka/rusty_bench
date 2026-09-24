@@ -22,12 +22,7 @@ fn main() {
     print_banner();
     println!("Enter 0 digits to run until interrupted. Enter q at a prompt to quit.");
 
-    loop {
-        let target_digits = match ask_target_digits() {
-            Some(value) => value,
-            None => break,
-        };
-
+    while let Some(target_digits) = ask_target_digits() {
         let requested_threads = match ask_thread_count() {
             Some(value) => value,
             None => break,
@@ -315,7 +310,10 @@ fn draw_progress(
         (elapsed % 10.0) / 10.0
     };
 
-    let width = 28;
+    // Keep the status line short enough for typical 80-column terminals.
+    // A wrapped line breaks `\r` redraw: only the last visual row is overwritten,
+    // so updates appear to print as new lines.
+    let width = 20;
     let filled = (progress * width as f64).round() as usize;
     let filled = filled.min(width);
     let bar = "#".repeat(filled) + &"-".repeat(width - filled);
@@ -327,16 +325,16 @@ fn draw_progress(
         target_digits.to_string()
     };
 
-    let samples = format!("{:.3e}", total_samples as f64);
     let rate = if elapsed > 0.0 {
-        format!("{:.3e} pts/s", (total_samples as f64) / elapsed)
+        format!("{:.2e}/s", (total_samples as f64) / elapsed)
     } else {
-        "0 pts/s".to_string()
+        "0/s".to_string()
     };
 
+    // Clear the line first, then redraw in place.
     print!(
-        "\r[{}] {:>5.1}% | digits {}/{} | est={:.15} | samples={} | {} | threads={} | {:.1}s   ",
-        bar, percent, best_digits, target_label, estimate, samples, rate, threads, elapsed
+        "\x1B[2K\r[{}] {:>5.1}% {}/{} π={:.7} {} {}t {:.1}s",
+        bar, percent, best_digits, target_label, estimate, rate, threads, elapsed
     );
 
     let _ = io::stdout().flush();
@@ -368,6 +366,7 @@ fn print_banner() {
 }
 
 #[cfg(test)]
+#[allow(clippy::approx_constant)] // intentionally uses truncated π literals
 mod tests {
     use super::*;
 
@@ -543,7 +542,7 @@ mod tests {
         let elapsed = 5.0; // seconds
         let progress = (elapsed % 10.0) / 10.0;
         assert!(
-            progress >= 0.0 && progress < 1.0,
+            (0.0..1.0).contains(&progress),
             "Progress should cycle between 0 and 1"
         );
     }
@@ -564,7 +563,7 @@ mod tests {
     #[test]
     fn test_core_id_indexing() {
         // Test the logic for indexing into core_ids array
-        let core_ids = vec![
+        let core_ids = [
             CoreId { id: 0 },
             CoreId { id: 1 },
             CoreId { id: 2 },
@@ -586,6 +585,6 @@ mod tests {
         // Test that batch size is reasonable
         const BATCH: u64 = 65_536;
         assert_eq!(BATCH, 65_536, "Batch size should be 65536");
-        assert!(BATCH > 0, "Batch size should be positive");
+        const { assert!(BATCH > 0, "Batch size should be positive") };
     }
 }
