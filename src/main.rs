@@ -310,7 +310,10 @@ fn draw_progress(
         (elapsed % 10.0) / 10.0
     };
 
-    let width = 28;
+    // Keep the status line short enough for typical 80-column terminals.
+    // A wrapped line breaks `\r` redraw: only the last visual row is overwritten,
+    // so updates appear to print as new lines.
+    let width = 20;
     let filled = (progress * width as f64).round() as usize;
     let filled = filled.min(width);
     let bar = "#".repeat(filled) + &"-".repeat(width - filled);
@@ -322,16 +325,16 @@ fn draw_progress(
         target_digits.to_string()
     };
 
-    let samples = format!("{:.3e}", total_samples as f64);
     let rate = if elapsed > 0.0 {
-        format!("{:.3e} pts/s", (total_samples as f64) / elapsed)
+        format!("{:.2e}/s", (total_samples as f64) / elapsed)
     } else {
-        "0 pts/s".to_string()
+        "0/s".to_string()
     };
 
+    // Clear the line first, then redraw in place.
     print!(
-        "\r[{}] {:>5.1}% | digits {}/{} | est={:.15} | samples={} | {} | threads={} | {:.1}s   ",
-        bar, percent, best_digits, target_label, estimate, samples, rate, threads, elapsed
+        "\x1B[2K\r[{}] {:>5.1}% {}/{} π={:.7} {} {}t {:.1}s",
+        bar, percent, best_digits, target_label, estimate, rate, threads, elapsed
     );
 
     let _ = io::stdout().flush();
@@ -363,6 +366,7 @@ fn print_banner() {
 }
 
 #[cfg(test)]
+#[allow(clippy::approx_constant)] // intentionally uses truncated π literals
 mod tests {
     use super::*;
 
@@ -387,7 +391,7 @@ mod tests {
     #[test]
     fn test_correct_digits_close_estimate() {
         // Test with estimate close to pi (3.14)
-        let digits = correct_digits(314.0 / 100.0);
+        let digits = correct_digits(3.14);
         assert!(
             digits > 0,
             "Close estimate should have at least 1 correct digit"
@@ -398,7 +402,7 @@ mod tests {
     #[test]
     fn test_correct_digits_very_close_estimate() {
         // Test with estimate very close to pi (3.14159265)
-        let digits = correct_digits(314_159_265.0 / 100_000_000.0);
+        let digits = correct_digits(3.14159265);
         assert!(
             digits >= 8,
             "3.14159265 should have at least 8 correct digits"
@@ -433,15 +437,7 @@ mod tests {
     fn test_correct_digits_max_is_15() {
         // Test that correct_digits never returns more than 15
         for estimate in [
-            2.0,
-            3.0,
-            3.1,
-            314.0 / 100.0,
-            3141.0 / 1000.0,
-            31415.0 / 10000.0,
-            314159.0 / 100000.0,
-            3141592.0 / 1000000.0,
-            31415926.0 / 10000000.0,
+            2.0, 3.0, 3.1, 3.14, 3.141, 3.1415, 3.14159, 3.141592, 3.1415926,
         ] {
             let digits = correct_digits(estimate);
             assert!(
@@ -465,7 +461,7 @@ mod tests {
     #[test]
     fn test_pi_estimate_validity() {
         // Test that pi estimates from random samples are in a reasonable range
-        let estimate = 314_159.0 / 100_000.0;
+        let estimate = 3.14159;
         assert!(estimate > 0.0, "Pi estimate should be positive");
         assert!(estimate < 4.0, "Pi estimate should be less than 4");
     }
@@ -589,6 +585,6 @@ mod tests {
         // Test that batch size is reasonable
         const BATCH: u64 = 65_536;
         assert_eq!(BATCH, 65_536, "Batch size should be 65536");
-        const { assert!(BATCH > 0) };
+        const { assert!(BATCH > 0, "Batch size should be positive") };
     }
 }

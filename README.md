@@ -33,13 +33,22 @@ cargo run --release
 
 Example session:
 ```
-=== Pi benchmark ===
+        ╔═══════════════════════════════╗
+        ║                               ║
+        ║      ███████████████████      ║
+        ║      █     █     █     █      ║
+        ║      █     █     ███████      ║
+        ║      █     █     █     █      ║
+        ║                               ║
+        ╚═══════════════════════════════╝
+        rusty_bench — π Calculator
+        
 Enter 0 digits to run until interrupted. Enter q at a prompt to quit.
 How many correct digits of Pi? (0 = run until Ctrl+C, q = quit): 5
 How many threads should be used? (q = quit): 4
-[############################] 100.0% | digits 5/5 | est=3.14159 | samples=1.23e+06 | 1.23e+05 pts/s | threads=4 | 10.23s
+[####################] 100.0% 5/5 π=3.1415927 1.20e+05/s 4t 10.2s
 Reached target of 5 correct digit(s).
-Pi estimate: 3.14159
+Pi estimate: 3.141592700000000
 Total runtime: 10.23s
 ```
 
