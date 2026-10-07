@@ -16,10 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Format
-      run: cargo fmt --all -- --check
     - name: Lint
       run: cargo clippy --all-targets --all-features -- -D warnings
+    - name: Format
+      run: cargo fmt --all -- --check
     - name: Test
       run: cargo test --all -- --nocapture
     - name: Build
